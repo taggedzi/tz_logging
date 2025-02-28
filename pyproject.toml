@@ -4,9 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tz_logging"
+dynamic = ["version"]  # Tell setuptools that version is dynamically generated
 description = "A very small python library used to facilitate easier logging."
 authors = [{name = "Matthew Craig", email = "taggedzi.mpc@gmail.com"}]
-license = "MIT"
+license = {file = "LICENSE"}
 dependencies = []
 readme = "README.md"
 
