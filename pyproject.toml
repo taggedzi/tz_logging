@@ -1,15 +1,16 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools", "setuptools_scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "tz_logging"
-version = "0.1.0"
 description = "A very small python library used to facilitate easier logging."
 authors = [{name = "Matthew Craig", email = "taggedzi.mpc@gmail.com"}]
-license = {text = "MIT"}
+license = "MIT"
 dependencies = []
 readme = "README.md"
 
-[tool.setuptools]
-packages = ["tz_logging"]
+[tool.setuptools_scm]
+version_scheme = "guess-next-dev"
+local_scheme = "node-and-timestamp"
+write_to = "tz_logging/_version.py"
