@@ -2,7 +2,7 @@
 
 As an experienced Python programmer, you know how powerful and versatile the built-in `logging` module is. However, setting up and configuring logging can be tedious, especially when dealing with non-terminal outputs or special conditions.
 
-This project aims to simplify the process by providing a lightweight library that streamlines common use cases for logging in Python. The end goal of tz_logging is to facilitate quickly setting up and use logging without having to memorize complex options and configurations.
+This project aims to simplify the process by providing a lightweight library that streamlines common use cases for logging in Python. The end goal of `tz_logging` is to facilitate quickly setting up and use logging without having to memorize complex options and configurations.
 
 To make it even easier, I've included example scripts demonstrating basic examples on how to implement some of these solutions, so you won't have to spend time researching each case. My goal is to provide a convenient and flexible solution for handling logging in your Python projects.
 
