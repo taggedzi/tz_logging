@@ -10,4 +10,6 @@ To act justly and to love mercy
     and to walk humbly[a] with your God.
 ```
 
+[The Bible: NIV Micah 6:8](https://www.biblegateway.com/passage/?search=Micah%206%3A8&version=NIV)
+
 Act Justly. Love Mercy. Walk humbly with your God.
