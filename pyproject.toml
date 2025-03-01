@@ -12,6 +12,6 @@ dependencies = []
 readme = "README.md"
 
 [tool.setuptools_scm]
-version_scheme = "post-release"
-local_scheme = "node-and-timestamp"
 write_to = "tz_logging/_version.py"
+version_scheme = "release-branch-semver"
+local_scheme = "no-local-version"
