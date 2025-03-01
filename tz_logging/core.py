@@ -103,8 +103,9 @@ class TzLogger:
 
         logging.config.dictConfig(config)
 
-        # Refresh the logger after applying the configuration.
+        # Ensure the logger updates to match the configuration's root level
         self.logger = logging.getLogger(self.name)
+        self.logger.setLevel(logging.getLogger().level)  # Sync with root logger
 
     def add_stream_handler(self, config: StreamHandlerConfig):
         """
