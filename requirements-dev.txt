@@ -1,0 +1,5 @@
+# requirements-dev.txt (Only for Development)
+pytest
+pytest-cov  # For coverage reporting
+setuptools
+setuptools_scm
