@@ -43,7 +43,36 @@ class TzLogger:
         """
         self.name = name
         self.logger = logging.getLogger(name)
-        self.logger.setLevel(logging.DEBUG)  # Allow all messages to pass through
+        self.logger.setLevel(logging.DEBUG)  # Allow all logs to be processed
+        self._original_levels = {}  # Store original levels for restoration
+
+    def set_temporary_log_level(self, level: int):
+        """
+        Temporarily changes the log level for all handlers attached to the logger.
+
+        Args:
+            level (int): The new log level (e.g., logging.DEBUG, logging.INFO, etc.).
+        """
+        self._original_levels = {handler: handler.level for handler in self.logger.handlers}
+
+        for handler in self.logger.handlers:
+            handler.setLevel(level)
+
+        print(f"Log level temporarily set to {logging.getLevelName(level)}")
+
+    def restore_log_level(self):
+        """
+        Restores the original log level for all handlers after a temporary change.
+        """
+        if self._original_levels:
+            for handler, original_level in self._original_levels.items():
+                handler.setLevel(original_level)
+
+            print("Log levels restored to their original values.")
+        else:
+            print("No previous log level stored. Nothing to restore.")
+
+        self._original_levels.clear()  # Clear stored levels after restoration
 
 
     def load_yaml_config(self, config_file: Optional[str] = None) -> None:
