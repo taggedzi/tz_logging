@@ -94,6 +94,7 @@ class TzLogger:
         # Determine the configuration file to use.
         if not config_file:
             config_file = os.getenv("TZ_LOGGING_CONFIG_FILE")
+
         if not config_file or not os.path.exists(config_file):
             raise FileNotFoundError("No YAML configuration file specified or found. "
                                     "Set TZ_LOGGING_CONFIG_FILE or pass a file path explicitly.")
@@ -114,16 +115,29 @@ class TzLogger:
         Args: 
             config (Optional[Dict]): a dictionary describing the configuration of the logger.
         """
+        if config is None:
+            raise ValueError("StreamHandlerConfig is required")
+        
         handler = logging.StreamHandler(config.stream)
         handler.setLevel(config.level)
         formatter = logging.Formatter(config.format_str or self.FORMAT_SIMPLE)
         handler.setFormatter(formatter)
         self.logger.addHandler(handler)
+        return handler
 
     def add_rotating_file_handler(self, config: RotatingFileHandlerConfig):
         """
         Adds a rotating file handler to the logger using the provided configuration.
         """
+        log_dir = os.path.dirname(config.file_path)
+
+        # Check if the directory exists and is writable
+        if not os.path.exists(log_dir):
+            raise FileNotFoundError(f"Log directory does not exist: {log_dir}")
+
+        if not os.access(log_dir, os.W_OK):
+            raise PermissionError(f"Cannot write to log directory: {log_dir}")
+        
         handler = RotatingFileHandler(
             config.file_path,
             maxBytes=config.max_bytes,
@@ -142,6 +156,3 @@ class TzLogger:
         for handler in self.logger.handlers:
             handler.addFilter(log_filter)
 
-
-if __name__ == "__main__":
-    pass
