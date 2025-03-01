@@ -1,8 +1,8 @@
 [run]
 branch = True
 omit =
-    tz_logging/_version.py
-    tests/*                  # Exclude test files from coverage
+    src/tz_logging/_version.py
+    tests/*                 
 
 [report]
 show_missing = True

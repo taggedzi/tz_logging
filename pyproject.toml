@@ -11,7 +11,10 @@ license = {file = "LICENSE"}
 dependencies = []
 readme = "README.md"
 
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.setuptools_scm]
-write_to = "tz_logging/_version.py"
+write_to = "src/tz_logging/_version.py"
 version_scheme = "release-branch-semver"
 local_scheme = "no-local-version"
