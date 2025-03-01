@@ -3,8 +3,10 @@ Module providing the ability to quickly setup and configure logging.
 """
 import logging
 import logging.config
+import os
 from logging.handlers import RotatingFileHandler
-from typing import Optional, Dict
+from typing import Optional
+import yaml
 from .config import RotatingFileHandlerConfig, StreamHandlerConfig
 
 
@@ -29,32 +31,50 @@ class TzLogger:
         '[%(levelname)s] %(asctime)s:  %(message)s'
     ])
 
-    def __init__(self, name: str = 'tz_logger', config: Optional[Dict] = None):
+    def __init__(self, name: str = 'tz_logger'):
         """
-        Initializes the logger. If a configuration dictionary is provided,
-        it uses dictConfig to set up the logger.
-
-        Args: 
-            name (str): The name of the logger
-            config (Optional[Dict]): a dictionary describing the configuration of the logger.
+        Initializes the logger with a blank (minimal) configuration.
+        No YAML or external configuration is loaded automatically.
+        The developer can later call load_yaml_config() to load a YAML file,
+        or add handlers and filters manually.
+        
+        Args:
+            name (str): The name of the logger.
         """
         self.name = name
         self.logger = logging.getLogger(name)
-        if config:
-            self.configure_logger(config)
-        else:
-            self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(logging.DEBUG)  # Allow all messages to pass through
 
-    def configure_logger(self, config: Dict):
-        """
-        Configures the logger using a configuration dictionary.
-        This method leverages logging.config.dictConfig for maximum flexibility.
 
-        Args: 
-            config (Optional[Dict]): a dictionary describing the configuration of the logger.
+    def load_yaml_config(self, config_file: Optional[str] = None) -> None:
         """
+        Explicitly loads a YAML configuration file to configure the logger.
+        If no config_file is provided, this method will check for the environment
+        variable 'TZ_LOGGING_CONFIG_FILE'. If that is also not set, an exception is raised.
+        
+        After loading the configuration via logging.config.dictConfig(), the logger is refreshed.
+        
+        Args:
+            config_file (Optional[str]): The path to the YAML configuration file.
+                                         If None, the environment variable TZ_LOGGING_CONFIG_FILE
+                                         is used.
+        
+        Raises:
+            FileNotFoundError: If no configuration file is found.
+        """
+        # Determine the configuration file to use.
+        if not config_file:
+            config_file = os.getenv("TZ_LOGGING_CONFIG_FILE")
+        if not config_file or not os.path.exists(config_file):
+            raise FileNotFoundError("No YAML configuration file specified or found. "
+                                    "Set TZ_LOGGING_CONFIG_FILE or pass a file path explicitly.")
+        # Load YAML configuration
+        with open(config_file, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+
         logging.config.dictConfig(config)
-        # Refresh the logger after applying the configuration
+
+        # Refresh the logger after applying the configuration.
         self.logger = logging.getLogger(self.name)
 
     def add_stream_handler(self, config: StreamHandlerConfig):
@@ -66,7 +86,7 @@ class TzLogger:
         """
         handler = logging.StreamHandler(config.stream)
         handler.setLevel(config.level)
-        formatter = logging.Formatter(config.format_str or self.FORMAT_STANDARD)
+        formatter = logging.Formatter(config.format_str or self.FORMAT_SIMPLE)
         handler.setFormatter(formatter)
         self.logger.addHandler(handler)
 
