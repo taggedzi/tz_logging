@@ -171,4 +171,4 @@ cython_debug/
 .pypirc
 
 # Automatic versioning files.
-_version.py
+tz_logging/_version.py
