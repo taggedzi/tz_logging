@@ -39,8 +39,8 @@ jobs:
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report-${{ matrix.runs-on }}
-          path: coverage-${{ matrix.runs-on }}.xml
+          name: coverage-report
+          path: coverage.xml
 
   versioning:
     needs: test  # Only run if tests pass
@@ -68,10 +68,10 @@ jobs:
           echo "VERSION=$(python -m setuptools_scm)" >> $GITHUB_ENV
           echo "Version detected: $VERSION"
 
-      - name: Create Git tag
+      - name: Authenticate and Push Git Tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git tag $VERSION
           git push origin $VERSION
 
