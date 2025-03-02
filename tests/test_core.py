@@ -302,3 +302,29 @@ def test_stream_handler_config_repr() -> None:
     assert "StreamHandlerConfig(stream=" in actual_repr, f"Unexpected __repr__: {actual_repr}"
     assert "level=10" in actual_repr, f"Expected log level in __repr__, got: {actual_repr}"
     assert "format_str=%(message)s" in actual_repr, f"Expected format_str in __repr__, got: {actual_repr}"
+
+
+def test_positive_keyword_filter(logger_instance, capsys):
+    """Test positive filtering (only logs containing the keyword are shown)."""
+    logger_instance.add_stream_handler(StreamHandlerConfig(stream=sys.stdout, level=logging.DEBUG))
+    logger_instance.add_keyword_filter("ERROR", positive=True)
+
+    logger_instance.logger.info("This is an INFO log.")  # Should be filtered out
+    logger_instance.logger.error("This is an ERROR log.")  # Should be logged
+
+    captured = capsys.readouterr()
+    assert "This is an ERROR log." in captured.out
+    assert "This is an INFO log." not in captured.out
+
+
+def test_negative_keyword_filter(logger_instance, capsys):
+    """Test negative filtering (logs containing the keyword are hidden)."""
+    logger_instance.add_stream_handler(StreamHandlerConfig(stream=sys.stdout, level=logging.DEBUG))
+    logger_instance.add_keyword_filter("DEBUG", positive=False)
+
+    logger_instance.logger.debug("This is a DEBUG log.")  # Should be filtered out
+    logger_instance.logger.info("This is an INFO log.")  # Should be logged
+
+    captured = capsys.readouterr()
+    assert "This is an INFO log." in captured.out
+    assert "This is a DEBUG log." not in captured.out
