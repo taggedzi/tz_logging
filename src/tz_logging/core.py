@@ -10,6 +10,27 @@ from typing import Optional
 import yaml
 from .config import RotatingFileHandlerConfig, StreamHandlerConfig
 
+class KeywordFilter(logging.Filter):
+    """
+    A filter that allows logging messages containing (positive) or excluding (negative) a given keyword.
+    """
+    def __init__(self, keyword: str, positive: bool = True):
+        """
+        Initializes the filter.
+
+        Args:
+            keyword (str): The keyword to filter log messages on.
+            positive (bool): If True, only logs containing the keyword will be shown.
+                            If False, logs containing the keyword will be hidden.
+        """
+        self.keyword = keyword
+        self.positive = positive
+
+    def filter(self, record):
+        """Filters log records based on keyword presence."""
+        message_contains_keyword = self.keyword in record.getMessage()
+        return message_contains_keyword if self.positive else not message_contains_keyword
+
 
 class TzLogger:
     """
@@ -161,3 +182,15 @@ class TzLogger:
         """
         for handler in self.logger.handlers:
             handler.addFilter(log_filter)
+
+    def add_keyword_filter(self, keyword: str, positive: bool = True) -> None:
+        """
+        Adds a keyword-based filter to the logger.
+
+        Args:
+            keyword (str): The keyword to filter log messages on.
+            positive (bool): If True, only logs containing the keyword will be shown.
+                             If False, logs containing the keyword will be hidden.
+        """
+        keyword_filter = KeywordFilter(keyword, positive)
+        self.add_filter(keyword_filter)
