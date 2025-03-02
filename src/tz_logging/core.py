@@ -17,26 +17,24 @@ class TzLogger:
     temporary log level adjustments, and adding various handlers dynamically.
     """
 
-    FORMAT_DETAILED = """
-    ------------------------------------
-       Logging Level: %(levelname)s
-     - Time:          %(asctime)s
-     - File:          %(pathname)s
-     - Function:      %(funcName)s
-     - Line Number:   %(lineno)d
-     - Message:       %(message)s
-    ------------------------------------
-    """.strip()
+    FORMAT_DETAILED = (
+        "------------------------------------\n"
+        "   Logging Level: %(levelname)s\n"
+        " - Time:          %(asctime)s\n"
+        " - File:          %(pathname)s\n"
+        " - Function:      %(funcName)s\n"
+        " - Line Number:   %(lineno)d\n"
+        " - Message:       %(message)s\n"
+        "------------------------------------"
+    )
 
-    FORMAT_STANDARD = """
-    [%(levelname)s] %(asctime)s
-    [%(pathname)s] %(funcName)s Line: %(lineno)d
-    %(message)s
-    """.strip()
+    FORMAT_STANDARD = (
+        "[%(levelname)s] %(asctime)s\n"
+        "[%(pathname)s] %(funcName)s Line: %(lineno)d\n"
+        "%(message)s"
+    )
 
-    FORMAT_SIMPLE = """
-    [%(levelname)s] %(asctime)s:  %(message)s
-    """.strip()
+    FORMAT_SIMPLE = "[%(levelname)s] %(asctime)s:  %(message)s"
 
     def __init__(self, name: str = "tz_logger"):
         """
