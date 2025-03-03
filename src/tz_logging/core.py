@@ -54,8 +54,10 @@ class AsyncRemoteHandler(logging.Handler):
             try:
                 self.log_queue.put_nowait(log_entry)
             except queue.Full:
+                # Triggers when the logging system cannot accept any more incoming requests.
                 print("[LOG HANDLER] Queue full. Dropping log:", log_entry)
         except queue.Full:
+            # Triggers when que is full
             print("[LOG HANDLER] Dropped log due to full queue")
 
     def _send_log(self, log_entry):
