@@ -15,7 +15,7 @@ def test_create_console_handler():
     assert handler.level == logging.DEBUG
 
 def test_async_remote_logging():
-    handler = LogHandler("remote_test", remote_url="https://example.com/logs")
+    handler = LogHandler("remote_test", remote_url="https://localhost/logs")
     assert "remote_test" in LogHandler._handler_registry
     assert isinstance(handler.handler, AsyncRemoteHandler)
 

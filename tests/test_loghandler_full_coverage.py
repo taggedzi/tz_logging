@@ -61,7 +61,7 @@ def test_modify_handler():
 
 # 4️⃣ Testing Async Logging (Queue Handling, Retries)
 def test_async_logging_queue():
-    handler = LogHandler("async_test", remote_url="https://example.com/logs")
+    handler = LogHandler("async_test", remote_url="https://localhost/logs")
     for _ in range(10):  # Simulating multiple log entries
         logging.info("Async log message")
     assert isinstance(handler.handler, AsyncRemoteHandler)

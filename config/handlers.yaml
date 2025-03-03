@@ -13,4 +13,4 @@ handlers:
 
   - name: remote_logger
     level: ERROR
-    remote_url: "https://example.com/logs"
+    remote_url: "https://localhost/logs"

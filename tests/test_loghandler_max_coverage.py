@@ -21,7 +21,7 @@ def test_module_initialization():
     ("console", "console"),
     ("file", "test.log"),
     ("syslog", ("localhost", 514)),
-    ("remote", "https://example.com/logs")
+    ("remote", "https://localhost/logs")
 ])
 def test_handler_initialization(handler_type, output):
     if handler_type == "syslog":
@@ -91,7 +91,7 @@ def test_async_remote_handler_failure(monkeypatch):
         raise ConnectionError("Simulated network failure")
 
     monkeypatch.setattr("requests.request", mock_request)
-    handler = LogHandler("failure_test", remote_url="https://example.com/logs")
+    handler = LogHandler("failure_test", remote_url="https://localhost/logs")
     logging.info("This should trigger a failed network request")
 
 # 7️⃣ Testing Cleanup & Teardown

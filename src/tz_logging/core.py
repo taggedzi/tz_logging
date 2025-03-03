@@ -137,6 +137,7 @@ class LogHandler:
         # Register handler
         LogHandler._handler_registry[name] = self
         LogHandler._update_global_log_level()
+        logging.debug(f"[LOG HANDLER] Created handler '{name}' with level {level}")
         
     def filter(self, record):
         """Filters log messages based on include/exclude patterns, file name, and log level."""
@@ -223,6 +224,7 @@ class LogHandler:
     def load_from_config(cls, config_file):
         """Load log handlers from a configuration file (JSON or YAML)."""
         cls._config_file = os.path.abspath(config_file)
+        logging.debug(f"[LOG HANDLER] Loading config from {config_file}")
         
         try:
             with open(cls._config_file, "r") as f:
@@ -293,6 +295,6 @@ class LogHandler:
 
 # console_json_handler = LogHandler("console_json", output="console", json_format=True)
 # console_json_handler = LogHandler("console_json", output="console", json_format=True, extra_fields={"app": "my_app"})
-# remote_log_handler = LogHandler("remote_logger", remote_url="https://example.com/logs")
+# remote_log_handler = LogHandler("remote_logger", remote_url="https://localhost/logs")
 
 # logging.info("Test structured log message.")
