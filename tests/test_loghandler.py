@@ -3,7 +3,7 @@ import logging
 import os
 import json
 import yaml
-from tz_logging.core10 import LogHandler, AsyncRemoteHandler, JSONFormatter
+from tz_logging.core import LogHandler, AsyncRemoteHandler, JSONFormatter
 
 class TestLogHandler(unittest.TestCase):
 
