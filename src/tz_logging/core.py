@@ -1,14 +1,14 @@
 import logging
 import re
 import json
-import yaml
 import os
-import queue 
-import requests
+import queue
 import time
 import threading
 from queue import Queue
 from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler, SysLogHandler
+import requests
+import yaml
 
 try:
     from watchdog.observers import Observer
@@ -18,11 +18,16 @@ except ImportError:
     WATCHDOG_AVAILABLE = False
 
 class JSONFormatter(logging.Formatter):
+    """JSON formatter
+
+    Args:
+        logging (logging.Formatter): a logging formatter.
+    """
     def __init__(self, extra_fields=None):
         super().__init__()
         self.extra_fields = extra_fields or {}
 
-    """Custom formatter to output logs in JSON format."""
+    # Custom formatter to output logs in JSON format.
     def format(self, record):
         log_record = {
             "timestamp": self.formatTime(record),
@@ -57,7 +62,7 @@ class AsyncRemoteHandler(logging.Handler):
         retries = 3
         for attempt in range(retries):
             try:
-                response = requests.request(self.method, self.url, json={"log": log_entry})
+                response = requests.request(self.method, self.url, json={"log": log_entry}, timeout=300)
                 if response.status_code == 200:
                     return
             except requests.RequestException as e:
@@ -85,7 +90,22 @@ class LogHandler:
     _config_file = None
     _stop_event = threading.Event()
     
-    def __init__(self, name, level=logging.INFO, fmt="%(asctime)s - %(levelname)s - %(message)s", output="console", include_filter=None, exclude_filter=None, file_filter=None, level_filter=None, rolling_type=None, rolling_value=None, backup_count=5, json_format=False, extra_fields=None, remote_url=None, syslog_address=None):
+    def __init__(self,
+                 name,
+                 level=logging.INFO,
+                 fmt="%(asctime)s - %(levelname)s - %(message)s",
+                 output="console",
+                 include_filter=None,
+                 exclude_filter=None,
+                 file_filter=None,
+                 level_filter=None,
+                 rolling_type=None,
+                 rolling_value=None,
+                 backup_count=5,
+                 json_format=False,
+                 extra_fields=None,
+                 remote_url=None,
+                 syslog_address=None):
 
         """
         Create a named log handler.
@@ -123,7 +143,7 @@ class LogHandler:
         # Register handler
         LogHandler._handler_registry[name] = self
         LogHandler._update_global_log_level()
-        logging.debug(f"[LOG HANDLER] Created handler '{name}' with level {level}")
+        logging.debug("[LOG HANDLER] Created handler '%s' with level %s", name, str(level))
         
     def filter(self, record):
         """Filters log messages based on include/exclude patterns, file name, and log level."""
@@ -210,16 +230,16 @@ class LogHandler:
     def load_from_config(cls, config_file):
         """Load log handlers from a configuration file (JSON or YAML)."""
         cls._config_file = os.path.abspath(config_file)
-        logging.debug(f"[LOG HANDLER] Loading config from {config_file}")
+        logging.debug("[LOG HANDLER] Loading config from %s", config_file)
         
         try:
-            with open(cls._config_file, "r") as f:
+            with open(cls._config_file, "r", encoding="utf-8") as f:
                 if config_file.endswith(".json"):
                     config = json.load(f)
                 else:
                     config = yaml.safe_load(f)
         except (json.JSONDecodeError, yaml.YAMLError) as e:
-            raise ValueError(f"Error loading config file: {e}")
+            raise ValueError(f"Error loading config file: {e}") from e
         
         # Remove existing handlers
         for handler in list(cls._handler_registry.values()):
@@ -252,6 +272,7 @@ class LogHandler:
         """Start watching the config file for changes."""
         if WATCHDOG_AVAILABLE:
             class ConfigHandler(FileSystemEventHandler):
+                """Class to setup and handle watchdog events."""
                 def on_modified(self, event):
                     if os.path.abspath(event.src_path) == cls._config_file:
                         print("[LOG HANDLER] Configuration changed. Reloading...")
