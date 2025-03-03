@@ -1,6 +1,6 @@
 # Import the main logger class and configuration data classes
-from .core import TzLogger
+from .core10 import LogHandler
 from .config import RotatingFileHandlerConfig, StreamHandlerConfig
 
 # Define what gets exposed when the package is imported
-__all__ = ["TzLogger", "RotatingFileHandlerConfig", "StreamHandlerConfig"]
+__all__ = ["LogHandler", "RotatingFileHandlerConfig", "StreamHandlerConfig"]

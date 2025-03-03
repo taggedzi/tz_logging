@@ -3,7 +3,7 @@ import sys
 import pytest
 import logging
 import yaml
-from tz_logging.core import TzLogger, StreamHandlerConfig, RotatingFileHandlerConfig
+from tz_logging.core import TzLogger, StreamHandlerConfig, RotatingFileHandlerConfig, KeywordFilter
 
 
 class DummyFilter(logging.Filter):
@@ -12,15 +12,22 @@ class DummyFilter(logging.Filter):
         return True
 
 
+# @pytest.fixture
+# def logger_instance() -> TzLogger:
+#     """
+#     Fixture to create a fresh TzLogger instance with no handlers.
+#     Returns:
+#         TzLogger: A new instance of TzLogger with the name 'test_logger'.
+#     """
+#     return TzLogger("test_logger")
+
+
 @pytest.fixture
-def logger_instance() -> TzLogger:
-    """
-    Fixture to create a fresh TzLogger instance with no handlers.
-    
-    Returns:
-        TzLogger: A new instance of TzLogger with the name 'test_logger'.
-    """
-    return TzLogger("test_logger")
+def logger_instance():
+    """Provides a fresh TzLogger instance for each test."""
+    logger = TzLogger("test_fresh_logger")
+    yield logger
+    logger.logger.handlers.clear()  # Clean up handlers after test
 
 
 def test_logger_initialization(logger_instance: TzLogger) -> None:
@@ -57,9 +64,6 @@ def test_add_rotating_file_handler(logger_instance: TzLogger, tmp_path) -> None:
     
     Verifies that a RotatingFileHandler is correctly added and that logged messages are written to the file.
     """
-    # Ensure the logger is clean before testing
-    logger_instance.logger.handlers.clear()
-
     log_file = tmp_path / "test.log"
     file_config = RotatingFileHandlerConfig(
         file_path=str(log_file),
@@ -328,3 +332,46 @@ def test_negative_keyword_filter(logger_instance, capsys):
     captured = capsys.readouterr()
     assert "This is an INFO log." in captured.out
     assert "This is a DEBUG log." not in captured.out
+
+
+
+# Pytest Unit Tests
+def test_positive_match():
+    filter = KeywordFilter("error|warning", positive=True, ignore_case=True)
+    assert filter.filter(logging.LogRecord("test", logging.INFO, "", 0, "This is an error message", None, None))
+    assert filter.filter(logging.LogRecord("test", logging.INFO, "", 0, "This is a warning", None, None))
+    assert not filter.filter(logging.LogRecord("test", logging.INFO, "", 0, "This is just info", None, None))
+    
+def test_negative_match():
+    filter = KeywordFilter("error", positive=False, ignore_case=True)
+    assert not filter.filter(logging.LogRecord("test", logging.INFO, "", 0, "This is an error message", None, None))
+    assert filter.filter(logging.LogRecord("test", logging.INFO, "", 0, "This is just info", None, None))
+    
+def test_case_sensitivity():
+    filter = KeywordFilter("debug", positive=True, ignore_case=False)
+    assert not filter.filter(logging.LogRecord("test", logging.INFO, "", 0, "DEBUG: Something happened", None, None))
+    assert filter.filter(logging.LogRecord("test", logging.INFO, "", 0, "debug: Something happened", None, None))
+    
+def test_case_insensitive():
+    filter = KeywordFilter("debug", positive=True, ignore_case=True)
+    assert filter.filter(logging.LogRecord("test", logging.INFO, "", 0, "DEBUG: Something happened", None, None))
+
+def test_tzlogger_add_keyword_filter():
+    """_summary_
+    """
+    key_word_filter = TzLogger("test_tzlogger_add_keyword_filter")
+    key_word_filter.add_stream_handler(StreamHandlerConfig(stream=sys.stdout, level=logging.INFO))
+    key_word_filter.add_keyword_filter("error|warning", positive=True, ignore_case=True)
+    
+    test_record_1 = logging.LogRecord("test_tzlogger_add_keyword_filter", logging.INFO, "", 0, "This is an error message", None, None)
+    test_record_2 = logging.LogRecord("test_tzlogger_add_keyword_filter", logging.INFO, "", 0, "This is just an info message", None, None)
+    
+    found_filter = False
+    for handler in key_word_filter.logger.handlers:
+        for log_filter in handler.filters:
+            if isinstance(log_filter, KeywordFilter):
+                found_filter = True
+                assert log_filter.filter(test_record_1) == True
+                assert log_filter.filter(test_record_2) == False
+    
+    assert found_filter, "KeywordFilter was not added to any handlers"

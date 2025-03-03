@@ -1,0 +1,16 @@
+handlers:
+  - name: console_json
+    level: INFO
+    output: console
+    json_format: true
+
+  - name: file_logger
+    level: DEBUG
+    output: app.log
+    rolling_type: size
+    rolling_value: 1048576  # 1MB max file size
+    backup_count: 3
+
+  - name: remote_logger
+    level: ERROR
+    remote_url: "https://example.com/logs"

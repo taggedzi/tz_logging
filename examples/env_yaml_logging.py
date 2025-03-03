@@ -1,4 +1,5 @@
 import os
+import logging
 from tz_logging.core import TzLogger
 
 # Step 1: Set the environment variable to point to the YAML configuration file
@@ -11,11 +12,11 @@ logger_instance = TzLogger("env_logger")
 logger_instance.load_yaml_config()
 
 # Step 4: Log messages at different levels
-logger_instance.logger.debug("DEBUG - Should be logged if the YAML allows it.")
-logger_instance.logger.info("INFO - This message should appear based on YAML settings.")
-logger_instance.logger.warning("WARNING - This is a warning message.")
-logger_instance.logger.error("ERROR - This is an error message.")
-logger_instance.logger.critical("CRITICAL - This is a critical error.")
+logging.debug("DEBUG - Should be logged if the YAML allows it.")
+logging.info("INFO - This message should appear based on YAML settings.")
+logging.warning("WARNING - This is a warning message.")
+logging.error("ERROR - This is an error message.")
+logging.critical("CRITICAL - This is a critical error.")
 
 print("Logging has been configured via the environment variable!")
 

@@ -4,6 +4,7 @@ Module providing the ability to quickly set up and configure logging.
 
 import logging
 import logging.config
+import re
 import os
 from logging.handlers import RotatingFileHandler
 from typing import Optional
@@ -12,24 +13,28 @@ from .config import RotatingFileHandlerConfig, StreamHandlerConfig
 
 class KeywordFilter(logging.Filter):
     """
-    A filter that allows logging messages containing (positive) or excluding (negative) a given keyword.
+    A filter that allows logging messages containing (positive) or excluding (negative) a given keyword or regex pattern.
     """
-    def __init__(self, keyword: str, positive: bool = True):
+    def __init__(self, pattern: str, positive: bool = True, ignore_case: bool = True):
         """
         Initializes the filter.
 
         Args:
-            keyword (str): The keyword to filter log messages on.
-            positive (bool): If True, only logs containing the keyword will be shown.
-                            If False, logs containing the keyword will be hidden.
+            pattern (str): The regex pattern to filter log messages.
+            positive (bool): If True, only logs matching the pattern will be shown.
+                            If False, logs matching the pattern will be hidden.
+            ignore_case (bool): If True, makes the regex case-insensitive.
         """
-        self.keyword = keyword
+        super().__init__()
+        flags = re.IGNORECASE if ignore_case else 0
+        self.regex = re.compile(pattern, flags)
         self.positive = positive
 
-    def filter(self, record):
-        """Filters log records based on keyword presence."""
-        message_contains_keyword = self.keyword in record.getMessage()
-        return message_contains_keyword if self.positive else not message_contains_keyword
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Filters log records based on the regex pattern."""
+        message = record.getMessage()
+        match = self.regex.search(message)  # No need to convert to lowercase manually
+        return bool(match) if self.positive else not bool(match)
 
 
 class TzLogger:
@@ -183,14 +188,14 @@ class TzLogger:
         for handler in self.logger.handlers:
             handler.addFilter(log_filter)
 
-    def add_keyword_filter(self, keyword: str, positive: bool = True) -> None:
+    def add_keyword_filter(self, pattern: str, positive: bool = True, ignore_case: bool = True) -> None:
         """
-        Adds a keyword-based filter to the logger.
+        Adds a regex-based keyword filter to the logger.
 
         Args:
-            keyword (str): The keyword to filter log messages on.
-            positive (bool): If True, only logs containing the keyword will be shown.
-                             If False, logs containing the keyword will be hidden.
+            pattern (str): The regex pattern to filter log messages.
+            positive (bool): If True, only logs matching the pattern will be shown.
+            ignore_case (bool): If True, makes the regex case-insensitive.
         """
-        keyword_filter = KeywordFilter(keyword, positive)
+        keyword_filter = KeywordFilter(pattern, positive, ignore_case)
         self.add_filter(keyword_filter)
