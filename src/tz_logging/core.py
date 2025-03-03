@@ -1,201 +1,298 @@
-"""
-Module providing the ability to quickly set up and configure logging.
-"""
-
 import logging
-import logging.config
 import re
-import os
-from logging.handlers import RotatingFileHandler
-from typing import Optional
+import json
 import yaml
-from .config import RotatingFileHandlerConfig, StreamHandlerConfig
+import os
+import queue 
+import requests
+import time
+import threading
+from queue import Queue
+from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler, SysLogHandler
 
-class KeywordFilter(logging.Filter):
-    """
-    A filter that allows logging messages containing (positive) or excluding (negative) a given keyword or regex pattern.
-    """
-    def __init__(self, pattern: str, positive: bool = True, ignore_case: bool = True):
-        """
-        Initializes the filter.
+try:
+    from watchdog.observers import Observer
+    from watchdog.events import FileSystemEventHandler
+    WATCHDOG_AVAILABLE = True
+except ImportError:
+    WATCHDOG_AVAILABLE = False
 
-        Args:
-            pattern (str): The regex pattern to filter log messages.
-            positive (bool): If True, only logs matching the pattern will be shown.
-                            If False, logs matching the pattern will be hidden.
-            ignore_case (bool): If True, makes the regex case-insensitive.
-        """
+class JSONFormatter(logging.Formatter):
+    def __init__(self, extra_fields=None):
         super().__init__()
-        flags = re.IGNORECASE if ignore_case else 0
-        self.regex = re.compile(pattern, flags)
-        self.positive = positive
+        self.extra_fields = extra_fields or {}
 
-    def filter(self, record: logging.LogRecord) -> bool:
-        """Filters log records based on the regex pattern."""
-        message = record.getMessage()
-        match = self.regex.search(message)  # No need to convert to lowercase manually
-        return bool(match) if self.positive else not bool(match)
+    """Custom formatter to output logs in JSON format."""
+    def format(self, record):
+        log_record = {
+            "timestamp": self.formatTime(record),
+            "level": record.levelname,
+            "message": record.getMessage(),
+            "file": record.pathname,
+            "line": record.lineno,
+            **self.extra_fields
+        }
+        return json.dumps(log_record)
 
+class RemoteHandler(logging.Handler):
+    """Custom handler to send logs to a remote HTTP endpoint."""
+    def __init__(self, url, method="POST"):
+        super().__init__()
+        self.url = url
+        self.method = method
 
-class TzLogger:
+    def emit(self, record):
+        try:
+            log_entry = self.format(record)
+            requests.request(self.method, self.url, json={"log": log_entry})
+        except Exception as e:
+            print(f"[LOG HANDLER] Failed to send log: {e}")
+
+class AsyncRemoteHandler(logging.Handler):
+    """Custom handler to send logs asynchronously to a remote HTTP endpoint."""
+    def __init__(self, url, method="POST", max_queue_size=1000):
+        super().__init__()
+        self.url = url
+        self.method = method
+        self.log_queue = Queue(maxsize=max_queue_size)
+        self._start_worker()
+
+    def emit(self, record):
+        log_entry = self.format(record)
+        try:
+            try:
+                self.log_queue.put_nowait(log_entry)
+            except queue.Full:
+                print("[LOG HANDLER] Queue full. Dropping log:", log_entry)
+        except queue.Full:
+            print("[LOG HANDLER] Dropped log due to full queue")
+
+    def _send_log(self, log_entry):
+        retries = 3
+        for attempt in range(retries):
+            try:
+                response = requests.request(self.method, self.url, json={"log": log_entry})
+                if response.status_code == 200:
+                    return
+            except requests.RequestException as e:
+                print(f"[LOG HANDLER] Failed to send log (attempt {attempt+1}/{retries}): {e}")
+                time.sleep(2 ** attempt)
+
+    def _start_worker(self):
+        def worker():
+            while True:
+                log_entry = self.log_queue.get()
+                self._send_log(log_entry)
+                self.log_queue.task_done()
+        
+        thread = threading.Thread(target=worker, daemon=True)
+        thread.start()
+
+class LogHandler:
     """
-    A configurable logger class that supports YAML-based configuration,
-    temporary log level adjustments, and adding various handlers dynamically.
+    Standalone handler-based logging system.
+    Developers only interact with handlers, not loggers.
     """
 
-    FORMAT_DETAILED = (
-        "------------------------------------\n"
-        "   Logging Level: %(levelname)s\n"
-        " - Time:          %(asctime)s\n"
-        " - File:          %(pathname)s\n"
-        " - Function:      %(funcName)s\n"
-        " - Line Number:   %(lineno)d\n"
-        " - Message:       %(message)s\n"
-        "------------------------------------"
-    )
+    _global_logger = logging.getLogger("handler_logger")
+    _handler_registry = {}
+    _config_file = None
+    _stop_event = threading.Event()
+    
+    def __init__(self, name, level=logging.INFO, fmt="%(asctime)s - %(levelname)s - %(message)s", output="console", include_filter=None, exclude_filter=None, file_filter=None, level_filter=None, rolling_type=None, rolling_value=None, backup_count=5, json_format=False, extra_fields=None, remote_url=None, syslog_address=None):
 
-    FORMAT_STANDARD = (
-        "[%(levelname)s] %(asctime)s\n"
-        "[%(pathname)s] %(funcName)s Line: %(lineno)d\n"
-        "%(message)s"
-    )
-
-    FORMAT_SIMPLE = "[%(levelname)s] %(asctime)s:  %(message)s"
-
-    def __init__(self, name: str = "tz_logger"):
         """
-        Initializes the logger with a blank (minimal) configuration.
-        No YAML or external configuration is loaded automatically.
-
-        Args:
-            name (str): The name of the logger.
+        Create a named log handler.
         """
         self.name = name
-        self.logger = logging.getLogger(name)
-        self.logger.setLevel(logging.DEBUG)  # Allow all logs to be processed
-        self._original_levels = {}  # Store original levels for restoration
+        self.level = level
+        self.include_filter = include_filter
+        self.exclude_filter = exclude_filter
+        self.file_filter = file_filter
+        self.level_filter = level_filter
 
-    def set_temporary_log_level(self, level: int) -> None:
-        """
-        Temporarily changes the log level for all handlers attached to the logger.
-
-        Args:
-            level (int): The new log level (e.g., logging.DEBUG, logging.INFO, etc.).
-        """
-        self._original_levels = {handler: handler.level for handler in self.logger.handlers}
-
-        for handler in self.logger.handlers:
-            handler.setLevel(level)
-
-        print(f"Log level temporarily set to {logging.getLevelName(level)}")
-
-    def restore_log_level(self) -> None:
-        """
-        Restores the original log level for all handlers after a temporary change.
-        """
-        if self._original_levels:
-            for handler, original_level in self._original_levels.items():
-                handler.setLevel(original_level)
-            print("Log levels restored to their original values.")
+        # Create handler
+        if remote_url:
+            print(f"[DEBUG] Creating AsyncRemoteHandler for {remote_url}")  # Debugging line
+            self.handler = AsyncRemoteHandler(remote_url)
+        elif output == "console":
+            self.handler = logging.StreamHandler()
+        elif syslog_address:
+            self.handler = SysLogHandler(address=syslog_address)
+        elif rolling_type == "size":
+            self.handler = RotatingFileHandler(output, maxBytes=rolling_value, backupCount=backup_count)
+        elif rolling_type == "time":
+            self.handler = TimedRotatingFileHandler(output, when=rolling_value, interval=1, backupCount=backup_count)
         else:
-            print("No previous log level stored. Nothing to restore.")
+            self.handler = logging.FileHandler(output)
 
-        self._original_levels.clear()  # Clear stored levels after restoration
+        self.handler.setLevel(level)
+        self.formatter = JSONFormatter(extra_fields) if json_format else logging.Formatter(fmt)
+        self.handler.setFormatter(self.formatter)
+        self.handler.addFilter(self)
 
-    def load_yaml_config(self, config_file: Optional[str] = None) -> None:
-        """
-        Loads a YAML configuration file to configure the logger.
+        # Attach handler to logger
+        self._global_logger.addHandler(self.handler)
+        
+        # Register handler
+        LogHandler._handler_registry[name] = self
+        LogHandler._update_global_log_level()
+        
+    def filter(self, record):
+        """Filters log messages based on include/exclude patterns, file name, and log level."""
+        message = record.getMessage()
+        
+        if self.include_filter and not re.search(self.include_filter, message):
+            return False
+        if self.exclude_filter and re.search(self.exclude_filter, message):
+            return False
+        if self.file_filter and not re.search(self.file_filter, record.pathname):
+            return False
+        if self.level_filter and record.levelno != self.level_filter:
+            return False
+        return True
 
-        Args:
-            config_file (Optional[str]): Path to the YAML configuration file.
-                                         If None, the environment variable TZ_LOGGING_CONFIG_FILE is used.
+    @staticmethod
+    def log(level, message):
+        """Log a message through the logger."""
+        LogHandler._global_logger.log(level, message)
 
-        Raises:
-            FileNotFoundError: If no configuration file is found.
-        """
-        config_file = config_file or os.getenv("TZ_LOGGING_CONFIG_FILE")
+    def set_level(self, level):
+        """Change the logging level of this handler."""
+        self.level = level
+        self.handler.setLevel(level)
+        LogHandler._update_global_log_level()
+    
+    def set_formatter(self, fmt):
+        """Set a new formatter for this handler."""
+        self.formatter = logging.Formatter(fmt)
+        self.handler.setFormatter(self.formatter)
+        print(f"[LOG HANDLER] Formatter updated for: {self.name}")
+    
+    def reset_formatter(self):
+        """Reset the handler's formatter to default."""
+        self.formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        self.handler.setFormatter(self.formatter)
+        print(f"[LOG HANDLER] Formatter reset for: {self.name}")
+    
+    @classmethod
+    def list_handlers(cls):
+        """List all registered handlers."""
+        return list(cls._handler_registry.keys())
+    
+    @classmethod
+    def remove_handler(cls, name):
+        """Remove a handler by name."""
+        if name in cls._handler_registry:
+            handler = cls._handler_registry.pop(name)
+            cls._global_logger.removeHandler(handler.handler)
+            print(f"[LOG HANDLER] Removed handler: {name}")
+            cls._update_global_log_level()
+        else:
+            print(f"[LOG HANDLER] Handler not found: {name}")
+    
+    @classmethod
+    def modify_handler(cls, name, level=None, include_filter=None, exclude_filter=None, file_filter=None, level_filter=None, formatter=None):
+        """Modify an existing handler's settings."""
+        if name in cls._handler_registry:
+            handler = cls._handler_registry[name]
+            if level:
+                handler.set_level(level)
+            if include_filter is not None:
+                handler.include_filter = include_filter
+            if exclude_filter is not None:
+                handler.exclude_filter = exclude_filter
+            if file_filter is not None:
+                handler.file_filter = file_filter
+            if level_filter is not None:
+                handler.level_filter = level_filter
+            if formatter is not None:
+                handler.set_formatter(formatter)
+            print(f"[LOG HANDLER] Modified handler: {name}")
+        else:
+            print(f"[LOG HANDLER] Handler not found: {name}")
 
-        if not config_file or not os.path.exists(config_file):
-            raise FileNotFoundError(
-                "No YAML configuration file specified or found. "
-                "Set TZ_LOGGING_CONFIG_FILE or pass a file path explicitly."
+    @classmethod
+    def _update_global_log_level(cls):
+        """Ensures the logger level matches the strictest handler level."""
+        if cls._handler_registry:
+            min_level = min(handler.level for handler in cls._handler_registry.values())
+            cls._global_logger.setLevel(min_level)
+
+    @classmethod
+    def load_from_config(cls, config_file):
+        """Load log handlers from a configuration file (JSON or YAML)."""
+        cls._config_file = os.path.abspath(config_file)
+        
+        try:
+            with open(cls._config_file, "r") as f:
+                if config_file.endswith(".json"):
+                    config = json.load(f)
+                else:
+                    config = yaml.safe_load(f)
+        except (json.JSONDecodeError, yaml.YAMLError) as e:
+            raise ValueError(f"Error loading config file: {e}")
+        
+        # Remove existing handlers
+        for handler in list(cls._handler_registry.values()):
+            cls._global_logger.removeHandler(handler.handler)
+        cls._handler_registry.clear()
+        
+        for handler_config in config.get("handlers", []):
+            LogHandler(
+                name=handler_config["name"],
+                level=getattr(logging, handler_config.get("level", "INFO").upper()),
+                fmt=handler_config.get("format", "%(asctime)s - %(levelname)s - %(message)s"),
+                output=handler_config.get("output", "console"),
+                include_filter=handler_config.get("include_filter"),
+                exclude_filter=handler_config.get("exclude_filter"),
+                file_filter=handler_config.get("file_filter"),
+                level_filter=getattr(logging, handler_config.get("level_filter", "NOTSET").upper()) if handler_config.get("level_filter") else None,
+                rolling_type=handler_config.get("rolling_type"),
+                rolling_value=handler_config.get("rolling_value"),
+                backup_count=handler_config.get("backup_count", 5),
+                json_format=handler_config.get("json_format", False),
+                extra_fields=handler_config.get("extra_fields"),
+                remote_url=handler_config.get("remote_url"),
+                syslog_address=handler_config.get("syslog_address")
             )
+        
+        cls._update_global_log_level()
+    
+    @classmethod
+    def start_config_watcher(cls):
+        """Start watching the config file for changes."""
+        if WATCHDOG_AVAILABLE:
+            class ConfigHandler(FileSystemEventHandler):
+                def on_modified(self, event):
+                    if os.path.abspath(event.src_path) == cls._config_file:
+                        print("[LOG HANDLER] Configuration changed. Reloading...")
+                        cls.load_from_config(cls._config_file)
 
-        with open(config_file, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f)
+            observer = Observer()
+            observer.schedule(ConfigHandler(), path=os.path.dirname(cls._config_file), recursive=False)
+            observer.start()
+        print(f"[LOG HANDLER] Watching {cls._config_file} for changes... (Watchdog: {WATCHDOG_AVAILABLE})")
 
-        logging.config.dictConfig(config)
-        self.logger = logging.getLogger(self.name)
-        self.logger.setLevel(logging.getLogger().level)  # Sync with root logger
 
-    def add_stream_handler(self, config: StreamHandlerConfig) -> logging.Handler:
-        """
-        Adds a stream handler to the logger using the provided configuration.
+#### Simple example
+# # Create a console handler with ERROR level and detailed format
+# error_console_handler = LogHandler(
+#     name="console_error",
+#     level=logging.ERROR,
+#     fmt="%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s",
+#     output="console"
+# )
+# # Generate test logs
+# logging.debug("This is a DEBUG message.")  # Will not show
+# logging.info("This is an INFO message.")  # Will not show
+# logging.warning("This is a WARNING message.")  # Will not show
+# logging.error("This is an ERROR message.")  # Will be displayed
+# logging.critical("This is a CRITICAL message.")  # Will be displayed
 
-        Args:
-            config (StreamHandlerConfig): Configuration object for the stream handler.
 
-        Returns:
-            logging.Handler: The created StreamHandler instance.
+# console_json_handler = LogHandler("console_json", output="console", json_format=True)
+# console_json_handler = LogHandler("console_json", output="console", json_format=True, extra_fields={"app": "my_app"})
+# remote_log_handler = LogHandler("remote_logger", remote_url="https://example.com/logs")
 
-        Raises:
-            ValueError: If the config parameter is None.
-        """
-        if not config:
-            raise ValueError("StreamHandlerConfig is required")
-
-        handler = logging.StreamHandler(config.stream)
-        handler.setLevel(config.level)
-        formatter = logging.Formatter(config.format_str or self.FORMAT_SIMPLE)
-        handler.setFormatter(formatter)
-        self.logger.addHandler(handler)
-        return handler
-
-    def add_rotating_file_handler(self, config: RotatingFileHandlerConfig) -> None:
-        """
-        Adds a rotating file handler to the logger using the provided configuration.
-
-        Args:
-            config (RotatingFileHandlerConfig): Configuration object for the file handler.
-
-        Raises:
-            FileNotFoundError: If the log directory does not exist.
-            PermissionError: If the log directory is not writable.
-        """
-        log_dir = os.path.dirname(config.file_path)
-
-        if not os.path.exists(log_dir):
-            raise FileNotFoundError(f"Log directory does not exist: {log_dir}")
-
-        if not os.access(log_dir, os.W_OK):
-            raise PermissionError(f"Cannot write to log directory: {log_dir}")
-
-        handler = RotatingFileHandler(
-            config.file_path, maxBytes=config.max_bytes, backupCount=config.backup_count
-        )
-        handler.setLevel(config.level)
-        formatter = logging.Formatter(config.format_str or self.FORMAT_STANDARD)
-        handler.setFormatter(formatter)
-        self.logger.addHandler(handler)
-
-    def add_filter(self, log_filter: logging.Filter) -> None:
-        """
-        Adds a custom filter to all existing handlers.
-
-        Args:
-            log_filter (logging.Filter): The filter instance to apply to all handlers.
-        """
-        for handler in self.logger.handlers:
-            handler.addFilter(log_filter)
-
-    def add_keyword_filter(self, pattern: str, positive: bool = True, ignore_case: bool = True) -> None:
-        """
-        Adds a regex-based keyword filter to the logger.
-
-        Args:
-            pattern (str): The regex pattern to filter log messages.
-            positive (bool): If True, only logs matching the pattern will be shown.
-            ignore_case (bool): If True, makes the regex case-insensitive.
-        """
-        keyword_filter = KeywordFilter(pattern, positive, ignore_case)
-        self.add_filter(keyword_filter)
+# logging.info("Test structured log message.")
