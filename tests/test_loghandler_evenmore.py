@@ -6,25 +6,8 @@ import requests
 import os
 import sys
 
-from src.tz_logging.core import RemoteHandler, AsyncRemoteHandler, LogHandler, WATCHDOG_AVAILABLE
+from tz_logging.core import AsyncRemoteHandler, LogHandler, WATCHDOG_AVAILABLE
 
-@patch("src.tz_logging.core.requests.request")
-def test_remote_handler_success(mock_request):
-    """Test that RemoteHandler sends a log successfully."""
-    mock_request.return_value.status_code = 200
-    handler = RemoteHandler(url="http://example.com", method="POST")
-    record = logging.LogRecord("test", logging.INFO, "test.py", 10, "Test log", None, None)
-    handler.emit(record)
-    mock_request.assert_called_once()
-
-@patch("src.tz_logging.core.requests.request", side_effect=requests.RequestException("Error"))
-def test_remote_handler_failure(mock_request):
-    """Test that RemoteHandler handles request failure gracefully."""
-    handler = RemoteHandler(url="http://example.com", method="POST")
-    record = logging.LogRecord("test", logging.INFO, "test.py", 10, "Test log", None, None)
-    with patch("builtins.print") as mock_print:
-        handler.emit(record)
-        mock_print.assert_called_with("[LOG HANDLER] Failed to send log: Error")
 
 @patch("queue.Queue.put_nowait", side_effect=queue.Full)
 def test_async_handler_queue_full(mock_queue):

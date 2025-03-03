@@ -34,20 +34,6 @@ class JSONFormatter(logging.Formatter):
         }
         return json.dumps(log_record)
 
-class RemoteHandler(logging.Handler):
-    """Custom handler to send logs to a remote HTTP endpoint."""
-    def __init__(self, url, method="POST"):
-        super().__init__()
-        self.url = url
-        self.method = method
-
-    def emit(self, record):
-        try:
-            log_entry = self.format(record)
-            requests.request(self.method, self.url, json={"log": log_entry})
-        except Exception as e:
-            print(f"[LOG HANDLER] Failed to send log: {e}")
-
 class AsyncRemoteHandler(logging.Handler):
     """Custom handler to send logs asynchronously to a remote HTTP endpoint."""
     def __init__(self, url, method="POST", max_queue_size=1000):
