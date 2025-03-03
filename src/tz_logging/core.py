@@ -147,6 +147,14 @@ class LogHandler:
         LogHandler._update_global_log_level()
         logging.debug("[LOG HANDLER] Created handler '%s' with level %s", name, str(level))
         
+    def __del__(self):
+        """Ensure the handler is properly closed and removed when deleted."""
+        if hasattr(self, "handler") and self.handler:
+            self.handler.close()
+        self.handler.close()
+        
+        print(f"[LOG HANDLER] Deleted handler: {getattr(self, 'name', 'Unknown')}")
+
     def filter(self, record):
         """Filters log messages based on include/exclude patterns, file name, and log level."""
         message = record.getMessage()
@@ -184,6 +192,17 @@ class LogHandler:
         self.handler.setFormatter(self.formatter)
         print(f"[LOG HANDLER] Formatter reset for: {self.name}")
     
+    def set_keyword_filter(self, search_text=None, positive=True):
+        self.include_filter = None
+        self.exclude_filter = None
+        if positive:
+            self.include_filter = search_text
+        else:
+            self.exclude_filter = search_text
+
+    def set_file_filter(self, file_name=None):
+        self.file_filter = file_name
+
     @classmethod
     def list_handlers(cls):
         """List all registered handlers."""
@@ -284,6 +303,13 @@ class LogHandler:
             observer.schedule(ConfigHandler(), path=os.path.dirname(cls._config_file), recursive=False)
             observer.start()
         print(f"[LOG HANDLER] Watching {cls._config_file} for changes... (Watchdog: {WATCHDOG_AVAILABLE})")
+
+
+logging.debug = lambda msg, *args, **kwargs: LogHandler.log(logging.DEBUG, msg.format(*args) if args else msg, **kwargs)
+logging.info = lambda msg, *args, **kwargs: LogHandler.log(logging.INFO, msg.format(*args) if args else msg, **kwargs)
+logging.warning = lambda msg, *args, **kwargs: LogHandler.log(logging.WARNING, msg.format(*args) if args else msg, **kwargs)
+logging.error = lambda msg, *args, **kwargs: LogHandler.log(logging.ERROR, msg.format(*args) if args else msg, **kwargs)
+logging.critical = lambda msg, *args, **kwargs: LogHandler.log(logging.CRITICAL, msg.format(*args) if args else msg, **kwargs)
 
 
 #### Simple example

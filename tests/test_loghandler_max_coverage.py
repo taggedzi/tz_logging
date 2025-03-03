@@ -1,4 +1,5 @@
 import pytest
+import gc
 import logging
 import os
 import json
@@ -35,7 +36,22 @@ def test_handler_initialization(handler_type, output):
 
     if handler_type == "file":
         assert os.path.exists(output)
+        h_list = LogHandler.list_handlers()
+        print(f'{h_list}')
+        # Close all handlers properly before deleting the file
+        for h in h_list:
+            LogHandler.remove_handler(h)
+        
         handler.handler.close()
+        handler.handler = None
+        del handler
+        gc.collect()
+        time.sleep(1)
+        try:
+            with open(output, "w"):  # Open in write mode to ensure no lock
+                pass
+        except PermissionError:
+            print("File is still locked!")
         os.remove(output)
 
 # 3️⃣ Additional Config Parsing & Error Handling Tests
