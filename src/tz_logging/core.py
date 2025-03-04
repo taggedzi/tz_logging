@@ -77,7 +77,7 @@ class AsyncRemoteHandler(logging.Handler):
                 log_entry = self.log_queue.get()
                 self._send_log(log_entry)
                 self.log_queue.task_done()
-        
+
         thread = threading.Thread(target=worker, daemon=True)
         thread.start()
 
@@ -91,7 +91,7 @@ class LogHandler:
     _handler_registry = {}
     _config_file = None
     _stop_event = threading.Event()
-    
+
     def __init__(self,
                  name,
                  level=logging.INFO,
@@ -108,6 +108,14 @@ class LogHandler:
                  extra_fields=None,
                  remote_url=None,
                  syslog_address=None):
+
+        """ Setup Private Attributes """
+        self.__name = None
+        self.__level = None
+        self.__include_filter = None
+        self.__exclude_filter = None
+        self.__file_filter = None
+        self.__level_filter = None
 
         """
         Create a named log handler.
@@ -150,10 +158,82 @@ class LogHandler:
     def __del__(self):
         """Ensure the handler is properly closed and removed when deleted."""
         if hasattr(self, "handler") and self.handler:
-            self.handler.close()
-        self.handler.close()
-        
+            try:
+                # Avoid attempting to close a handler that has already been closed
+                self.handler.close()
+            except (RuntimeError, AttributeError) as e:
+                print(f"[LOG HANDLER] Failed to close handler: {e}")
+
+        # Remove handler from registry
+        LogHandler._handler_registry.pop(self.name, None)
+
         print(f"[LOG HANDLER] Deleted handler: {getattr(self, 'name', 'Unknown')}")
+
+    @property
+    def name(self):
+        return self.__name
+
+    @name.setter
+    def name(self, new_name):
+        if isinstance(new_name, str) and new_name.strip():
+            self.__name = new_name
+        else:
+            raise ValueError("Invalid name")
+
+    @property
+    def level(self):
+        return self.__level
+
+    @level.setter
+    def level(self, new_level):
+        if isinstance(new_level, int):
+            self.__level = new_level
+        else:
+            raise TypeError("Invalid logging level type. Must be of type Integer.")
+
+    @property
+    def include_filter(self):
+        return self.__include_filter
+    
+    @include_filter.setter
+    def include_filter(self, filter_text):
+        if filter_text is None or isinstance(filter_text, str):
+            self.__include_filter = filter_text
+        else:
+            raise TypeError("Invalid filter text type. Must be Null or of type String.")
+
+    @property
+    def exclude_filter(self):
+        return self.__exclude_filter
+    
+    @exclude_filter.setter
+    def exclude_filter(self, filter_text):
+        if filter_text is None or isinstance(filter_text, str):
+            self.__exclude_filter = filter_text
+        else:
+            raise TypeError("Invalid filter text type. Must be of type String.")
+
+    @property
+    def file_filter(self):
+        return self.__file_filter
+    
+    @file_filter.setter
+    def file_filter(self, filter_text):
+        if filter_text is None or isinstance(filter_text, str):
+            self.__file_filter = filter_text
+        else:
+            raise TypeError("Invalid filter text type. Must be of type String.")
+
+    @property
+    def level_filter(self):
+        return self.__level_filter
+    
+    @level_filter.setter
+    def level_filter(self, filter_text):
+        if filter_text is None or isinstance(filter_text, int):
+            self.__level_filter = filter_text
+        else:
+            raise TypeError("Invalid filter text type. Must be of type Integer.")
 
     def filter(self, record):
         """Filters log messages based on include/exclude patterns, file name, and log level."""
@@ -176,7 +256,7 @@ class LogHandler:
 
     def set_level(self, level):
         """Change the logging level of this handler."""
-        self.level = level
+        self.__level = level
         self.handler.setLevel(level)
         LogHandler._update_global_log_level()
     
@@ -184,13 +264,13 @@ class LogHandler:
         """Set a new formatter for this handler."""
         self.formatter = logging.Formatter(fmt)
         self.handler.setFormatter(self.formatter)
-        print(f"[LOG HANDLER] Formatter updated for: {self.name}")
+        print(f"[LOG HANDLER] Formatter updated for: {self.__name}")
     
     def reset_formatter(self):
         """Reset the handler's formatter to default."""
         self.formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
         self.handler.setFormatter(self.formatter)
-        print(f"[LOG HANDLER] Formatter reset for: {self.name}")
+        print(f"[LOG HANDLER] Formatter reset for: {self.__name}")
     
     def set_keyword_filter(self, search_text=None, positive=True):
         self.include_filter = None
