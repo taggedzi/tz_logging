@@ -298,6 +298,10 @@ class LogHandler:
             cls._update_global_log_level()
         else:
             print(f"[LOG HANDLER] Handler not found: {name}")
+
+    @staticmethod
+    def clear_handlers():
+        LogHandler._handler_registry.clear()
     
     @classmethod
     def modify_handler(cls, name, level=None, include_filter=None, exclude_filter=None, file_filter=None, level_filter=None, formatter=None):

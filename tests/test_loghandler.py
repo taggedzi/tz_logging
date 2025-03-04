@@ -1,18 +1,18 @@
-import pytest
-from unittest.mock import patch, MagicMock, mock_open
-import logging
-import queue
 import os
-import gc
 import json
+import logging
+from logging.handlers import SysLogHandler
+from unittest.mock import patch, MagicMock, mock_open
+import queue
+import gc
+import pytest
 import time
 import yaml
 from tz_logging.core import LogHandler, AsyncRemoteHandler, JSONFormatter, WATCHDOG_AVAILABLE
-from logging.handlers import SysLogHandler
 
 @pytest.fixture(autouse=True)
 def clear_handlers():
-    LogHandler._handler_registry.clear()
+    LogHandler.clear_handlers()
 
 def test_create_console_handler():
     handler = LogHandler("console_test", output="console", level=logging.DEBUG)
